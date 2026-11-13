@@ -1,0 +1,20 @@
+# Cal/Val Agent Configuration
+# Local GPF operator installation
+
+# GPF Project Paths (local)
+gpf_paths:
+  base: "GPF"
+  star_cross: "GPF/csv_glsy_alt_gdr_aux_sat_cal"
+  self_cross: "GPF/02-星星自交叉法 v2.0/CVS_SELF_GLSY_ALT_GDR_AUX_SAT_CAL"
+  tide_ext: "GPF/04-验潮站外推 v1.0/CVS_GLSY_ALT_GDR_AUX_YCZ_CAL"
+  target: "GPF"
+
+data:
+  satelite: "D:/BaiduSyncdisk/project/202610/data/satelite"
+  star_cross: "D:/BaiduSyncdisk/project/202610/data/satelite"
+  self_cross: "D:/BaiduSyncdisk/project/202610/data/satelite"
+  sig0_cross: "D:/BaiduSyncdisk/project/202610/data/satelite"
+  ocean_tide: "D:/BaiduSyncdisk/project/202610/data/ocean_tide"
+  tide_ext: "D:/BaiduSyncdisk/project/202610/data"
+  # 验潮站相关子路径
+  hy2bgdr: "D:/BaiduSyncdisk/project/202610/data/HY-2BGDR"

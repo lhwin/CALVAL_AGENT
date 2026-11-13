@@ -1,0 +1,80 @@
+# === 非商业许可声明 ===
+# 本代码非商业发布。商业使用须征得作者（lhwin / 1097304039@qq.com）书面许可。
+# 此限制适用于本仓库的全部内容，包括但不限于源代码、文档、配置文件和衍生作品。
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+.venv/
+.conda/
+envs/
+
+# 编译器和 IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志与输出
+logs/
+*.log
+output_local_test/
+output/
+
+# 数据与测试数据（GPF 二进制/NC，不入仓库）
+GPF_test_data/
+*.nc
+*.h5
+*.hdf
+*.dbf
+*.prj
+
+# 环境配置与敏感信息
+.env
+.env.local
+config/secrets.yaml
+config/*_secret*
+
+#输出文件夹
+output/*
+output_local_test/*
+
+# 操作系统
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+pytest_cache/
+.tox/
+
+# Git
+.git/

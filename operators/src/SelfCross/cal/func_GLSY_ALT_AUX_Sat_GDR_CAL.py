@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 # from docx import Document
 # from docx.shared import Cm
 import shutil
-from IPFUtils import Logger, write_product_xml, CacuConfig
+from operators.IPFUtils import Logger, write_product_xml, CacuConfig
 
 
 def func_self_cross_cal_pro(ipf_config):

@@ -28,13 +28,8 @@ class OceanTideCalibration:
     def run(self) -> Dict[str, Any]:
         t0 = time.time()
         try:
-            
-# MATCH
-
-            match_result = func_ycz_matching_pro(self.config)
-
-            
-# CAL: 把 MATCH 的输出目录作为 CAL 的输入
+            # MATCH
+            match_result = func_ycz_matching_pro(self.config)# CAL: 把 MATCH 的输出目录作为 CAL 的输入
 
             self.config.input = match_result["output_files"]["output_dir"]
             cal_result = func_ycz_cal_pro(self.config)

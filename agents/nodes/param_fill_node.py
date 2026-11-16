@@ -22,8 +22,9 @@ def param_fill_node(state: AgentState) -> AgentState:
     for ds in available_datasets:
         if ds.get("sat_id", "").upper() == sat_id.upper():
             primary_input_dir = ds.get("path", "") or ds.get("input_dir", "")
-        elif ds.get("sat_id", "").upper() == aux_type.upper():
-            aux_input_dir = ds.get("path", "") or ds.get("input_dir", "")
+        if aux_type is not None:
+            if ds.get("sat_id", "").upper() == aux_type.upper():
+                aux_input_dir = ds.get("path", "") or ds.get("input_dir", "")
 
     if not primary_input_dir and selected_data:
         primary_input_dir = selected_data.get("path", "") or selected_data.get("input_dir", "")

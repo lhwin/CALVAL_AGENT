@@ -3,7 +3,7 @@ from agents.workflow import create_workflow
 graph = create_workflow()
 
 initial_state = {
-    "task_text": "用 S6A 和 JA3 做 2023 年 5 月的星间交叉",
+    "task_text": "用 S6A 做一下自交叉",
     "parsed_task": None,
     "param_body": None,
     "user_confirmed": False,
@@ -22,10 +22,12 @@ initial_state = {
 
 state = graph.invoke(initial_state)
 
+
 # 向用户展示 param_body
 
 print("建议参数：")
 print(state["param_body"])
+print(state["operator_result"]["cal_result"])
 print("请回复：yes（默认执行） 或 修改后的参数 / 自然语言修改")
 
 # 用户回复后，外部处理：

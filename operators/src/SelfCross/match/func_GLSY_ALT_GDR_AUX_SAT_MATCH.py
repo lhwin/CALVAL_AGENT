@@ -14,20 +14,21 @@ from datetime import datetime, timedelta
 # from docx import Document
 # from docx.shared import Cm
 import shutil
-from IPFUtils import Logger, write_product_xml, CacuConfig
+from operators.IPFUtils import Logger, write_product_xml, CacuConfig
 
 
 def func_self_cross_matching_pro(ipf_config):
     # 兼容 Python 源码运行和 PyInstaller 打包运行
-    current_dir = getattr(
-        sys,
-        '_MEIPASS',
-        os.path.dirname(os.path.abspath(__file__))
-    )
+    # current_dir = getattr(
+    #     sys,
+    #     '_MEIPASS',
+    #     os.path.dirname(os.path.abspath(__file__))
+    # )
 
+    current_dir = os.getcwd()
     current_dir = os.path.abspath(current_dir)
 
-    fontTTF = os.path.join(current_dir, "conf", "SimHei.ttf")
+    fontTTF = os.path.join(current_dir, "config", "SimHei.ttf")
     font_prop = FontProperties(fname=fontTTF)
     plt.rcParams['axes.unicode_minus'] = False
     plt.rcParams.update({'font.size': 14})

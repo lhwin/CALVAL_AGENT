@@ -39,6 +39,7 @@ class SelfCrossCalibration:
         return {
                 "status": "success",
                 "execution_time": time.time() - t0,
+                'match_result': match_result,
                 "cal_result": cal_result,
             }
 

@@ -48,7 +48,7 @@ def _parse_with_llm(text: str, data_summary: Dict[str, Any] = None) -> Dict[str,
     if data_summary:
         satellite_stats = data_summary.get("satellite_stats", {})
         for sat_id, stats in satellite_stats.items():
-            file_count = stats.get("file_count", "未知")
+            file_count = satellite_stats.get(sat_id).get("nc_count", "未知")
             time_range = stats.get("time_range", "未知")
             start_date = satellite_stats.get(sat_id).get('start_date')
             end_date = satellite_stats.get(sat_id).get('end_date')

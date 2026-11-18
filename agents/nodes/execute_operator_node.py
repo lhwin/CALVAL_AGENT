@@ -1,6 +1,11 @@
 from agents.nodes.state import AgentState
 from core.op_config import LocalConfig
 from operators.src.config import *
+import json
+import os
+from datetime import datetime
+
+KB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "kb_cases.json")
 
 def execute_operator_node(state: AgentState) -> AgentState:
     """根据推荐的方法，调用对应算子执行定标任务。"""
@@ -66,4 +71,56 @@ def execute_operator_node(state: AgentState) -> AgentState:
         "operator_result": result,
         "status": "success" if result.get("status") == "success" else "failed",
         "logs": state["logs"] + [{"event": "operator_executed", "operator": method, "status": result.get("status")}],
+    } | _save_kb_case(state, method, parsed, selected, recommendation, result)
+
+
+def _save_kb_case(state: AgentState, method: str, parsed: dict, selected: dict, recommendation: dict, result: dict) -> dict:
+    """把本次执行案例追加到知识库，避免重复条目，保留最近 200 条。"""
+    new_case = {
+        "case_id": datetime.now().strftime("%Y%m%d%H%M%S"),
+        "task_text": parsed.get("task_text", ""),
+        "method": method,
+        "primary_sat": parsed.get("primary_sat"),
+        "aux_data_type": parsed.get("aux_data_type"),
+        "start_date": parsed.get("start_date"),
+        "end_date": parsed.get("end_date"),
+        "operator_config": state.get("param_body", {}),
+        "status": result.get("status", "unknown"),
+        "failure_reason": result.get("error") if result.get("status") == "failed" else None,
+        "metrics": result.get("metrics"),
+        "created_at": datetime.now().isoformat(),
     }
+
+    if not os.path.exists(os.path.dirname(KB_PATH)):
+        os.makedirs(os.path.dirname(KB_PATH), exist_ok=True)
+
+    cases = []
+    if os.path.exists(KB_PATH):
+        try:
+            with open(KB_PATH, "r", encoding="utf-8") as f:
+                cases = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            cases = []
+
+    # 去重：相同 method+sat+dates+status 不重复写入
+    fingerprint = (
+        new_case["method"],
+        new_case["primary_sat"],
+        new_case["start_date"],
+        new_case["end_date"],
+        new_case["status"],
+    )
+    if any(
+        (c.get("method"), c.get("primary_sat"), c.get("start_date"), c.get("end_date"), c.get("status")) == fingerprint
+        for c in cases
+    ):
+        return {}
+
+    cases.append(new_case)
+    cases.sort(key=lambda c: c.get("case_id", ""), reverse=True)
+    cases = cases[:200]
+
+    with open(KB_PATH, "w", encoding="utf-8") as f:
+        json.dump(cases, f, ensure_ascii=False, indent=2)
+
+    return {}

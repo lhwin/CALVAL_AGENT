@@ -17,6 +17,9 @@ except:
     from operators.src.OceanTide.match.func_GLSY_ALT_GDR_AUX_YCZ_MATCH import func_ycz_matching_pro
     from operators.src.config import *
 
+f = open("config/settings.yaml", "r", encoding="utf-8")
+config = yaml.safe_load(f)
+api_address = config["serverdata"]["api_address"]
 
 class OceanTideCalibration:
     """海洋潮汐外推定标 (卫星 vs 验潮站)。"""

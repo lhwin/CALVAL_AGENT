@@ -18,6 +18,11 @@ except Exception as e:
     from operators.src.StarCross.cal.func_GLSY_ALT_AUX_Sat_GDR_CAL import func_cross_cal_pro
     from operators.src.StarCross.match.func_GLSY_ALT_GDR_AUX_SAT_MATCH import func_cross_matching_pro
     from operators.src.config import *
+import yaml
+from core.utils.utils import request_data
+f = open("config/settings.yaml", "r", encoding="utf-8")
+config = yaml.safe_load(f)
+api_address = config["serverdata"]["api_address"]
 
 class StarCrossCalibration:
     """星星交叉定标 (星间交叉: 主卫星 vs 辅助卫星)。"""
@@ -27,6 +32,21 @@ class StarCrossCalibration:
         self.logger = logging.getLogger("star_cross")
 
     def run(self) -> Dict[str, Any]:
+        t0 = time.time()
+        # MATCH: 需要先设置 AUX_Sat 和 input_AUX
+        match_result = request_data(api_address+"/starcross/match", self.config.dict())
+            
+            # CAL: 把 MATCH 的输出目录作为 CAL 的输入
+        self.config.input = match_result["output_dir"]
+        cal_result = request_data(api_address+"/starcross/cal", self.config.dict())
+
+        return {
+                "status": "success",
+                "execution_time": time.time() - t0,
+                "cal_result": cal_result,
+            }
+
+    def run_local(self) -> Dict[str, Any]:
         t0 = time.time()
         # MATCH: 需要先设置 AUX_Sat 和 input_AUX
         match_result = func_cross_matching_pro(self.config)

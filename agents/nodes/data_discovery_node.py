@@ -1,14 +1,29 @@
 from agents.nodes.state import AgentState
 from agents.data_adapter.explorer import LocalDataExplorer
 import yaml
+from core.utils.utils import request_data
+
 def data_discovery_node(state: AgentState) -> AgentState:
     """扫描卫星数据和潮汐站数据，生成统计信息。"""
     try:
         with open("config/settings.yaml", "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)["data"]
+                data = yaml.safe_load(f)
+        if state["mode"] == "local":
+            
+            data = data["localdata"]
+            explorer = LocalDataExplorer(data["satelite"], data["ocean_tide"])
+            report = explorer.discover_data()
+        elif state["mode"] == "remote":
+            config = data["serverdata"]
+            satelite_dir = config["satelite"]
+            oceantide_dir = config["oceantide"]
+            item_data = {
+                    "satelite_dir": satelite_dir,
+                    "oceantide_dir": oceantide_dir
+                }
+            api_address = config["api_address"]+"/data/discover"
+            report = request_data(api_address, item_data)
 
-        explorer = LocalDataExplorer(data["satelite"], data["ocean_tide"])
-        report = explorer.discover_data()
     except Exception as e:
         return {
             "available_datasets": [],

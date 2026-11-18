@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, Optional
 import numpy as np
 from scipy import stats as stats_log
-
+from core.utils.utils import request_data
 try:
     from src.SelfCross.cal.func_GLSY_ALT_AUX_Sat_GDR_CAL import func_self_cross_cal_pro
     from src.SelfCross.match.func_GLSY_ALT_GDR_AUX_SAT_MATCH import func_self_cross_matching_pro
@@ -20,6 +20,12 @@ except Exception as e:
     from operators.src.SelfCross.match.func_GLSY_ALT_GDR_AUX_SAT_MATCH import func_self_cross_matching_pro
     from operators.src.config import *
 
+import yaml
+
+f = open("config/settings.yaml", "r", encoding="utf-8")
+config = yaml.safe_load(f)
+api_address = config["serverdata"]["api_address"]
+
 class SelfCrossCalibration:
     """星星交叉定标 (星间交叉: 主卫星 vs 辅助卫星)。"""
 
@@ -28,6 +34,19 @@ class SelfCrossCalibration:
         self.logger = logging.getLogger("star_cross")
 
     def run(self) -> Dict[str, Any]:
+        t0 = time.time()
+        match_result = request_data(api_address+"/selfcross/match", self.config.dict())
+        self.config.input = match_result["output_dir"]
+        cal_result = request_data(api_address+"/selfcross/cal", self.config.dict())
+
+        return {
+                "status": "success",
+                "execution_time": time.time() - t0,
+                'match_result': match_result,
+                "cal_result": cal_result,
+            }
+
+    def run_local(self) -> Dict[str, Any]:
         t0 = time.time()
         # MATCH: 需要先设置 AUX_Sat 和 input_AUX
         match_result = func_self_cross_matching_pro(self.config)
@@ -44,10 +63,10 @@ class SelfCrossCalibration:
             }
 
     def run_match(self):
-        return func_cross_matching_pro(self.config)
+        return func_self_cross_matching_pro(self.config)
 
     def run_cal(self):
-        return func_cross_cal_pro(self.config)
+        return func_self_cross_cal_pro(self.config)
 
 if __name__ == "__main__":
 

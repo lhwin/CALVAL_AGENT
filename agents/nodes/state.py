@@ -10,6 +10,8 @@ from langchain_core.messages import AnyMessage
 class AgentState(TypedDict):
     """LangGraph state for calibration workflow."""
     
+    mode: Annotated[str, "Execution mode: local|remote"]
+
     # Input/Planning
     task_text: Annotated[str, "Natural language task description"]
     parsed_task: Annotated[Optional[Dict[str, Any]], "Structured task"]

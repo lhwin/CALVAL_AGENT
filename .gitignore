@@ -53,6 +53,7 @@ GPF_test_data/
 *.hdf
 *.dbf
 *.prj
+data/
 
 # 环境配置与敏感信息
 .env

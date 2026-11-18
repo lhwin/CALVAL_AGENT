@@ -20,8 +20,9 @@ from agents.nodes.execute_operator_node import execute_operator_node
 from agents.nodes.method_recommendation_node import method_recommendation_node
 from agents.nodes.param_fill_node import param_fill_node
 from agents.nodes.user_confirm_node import user_confirm_node
+from agents.nodes.knowledge_base_node import knowledge_base_node
 
-def create_workflow(debug: bool = False):
+def create_workflow(debug: bool = False, checkpointer=None):
     """创建工作流图。"""
     graph_builder = StateGraph(AgentState)
     nodes = {
@@ -31,12 +32,14 @@ def create_workflow(debug: bool = False):
         "param_fill": param_fill_node,
         "user_confirm": user_confirm_node,
         "execute_operator": execute_operator_node,
+        "knowledge_base": knowledge_base_node,
     }
     for name, func in nodes.items():
         graph_builder.add_node(name, func)
 
     graph_builder.set_entry_point("data_discovery")
     graph_builder.add_edge("data_discovery", "task_parser")
+    graph_builder.add_edge("task_parser", "knowledge_base")
 
     def route_after_task_parser(state: AgentState) -> Literal["method_recommendation", "param_fill"]:
         branch = state.get("branch_path", "need_method_recommendation")
@@ -46,7 +49,7 @@ def create_workflow(debug: bool = False):
         return "param_fill"
 
     graph_builder.add_conditional_edges(
-        "task_parser",
+        "knowledge_base",
         route_after_task_parser,
         {
             "method_recommendation": "method_recommendation",
@@ -76,6 +79,6 @@ def create_workflow(debug: bool = False):
         {END: END},
     )
 
-    return graph_builder.compile()
+    return graph_builder.compile(checkpointer=checkpointer)
 
 workflow_graph = create_workflow()

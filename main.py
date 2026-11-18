@@ -1,9 +1,13 @@
 from agents.workflow import create_workflow
+from langgraph.checkpoint.memory import MemorySaver
+import json
 
-graph = create_workflow()
+config = {"configurable": {"thread_id": "calval_001"}}
+
+graph = create_workflow(checkpointer=MemorySaver())
 
 initial_state = {
-    "task_text": "用 S6A 做一下自交叉",
+    "task_text": "I want 做一下 星间交叉",
     "parsed_task": None,
     "param_body": None,
     "user_confirmed": False,
@@ -16,33 +20,20 @@ initial_state = {
     "operator_result": None,
     "logs": [],
     "status": "pending",
+    "mode": "remote"
 }
 
 # 第一步：运行到 user_confirm 暂停
+result = graph.invoke(initial_state, config)
+print("status after first invoke:", result.get("status"))
+print("branch_path:", result.get("branch_path"))
+print("recommendation:", result.get("recommendation"))
 
-state = graph.invoke(initial_state)
-
+# 用户确认后，再次 invoke：应该走到 execute_operator
+graph.update_state(config, {"user_confirmed": True})
+result2 = graph.invoke(None, config)
+print("status after second invoke:", result2.get("status"))
+print("operator_result:", json.dumps(result2.get("operator_result", {}), indent=2, ensure_ascii=False) if result2.get("operator_result") else "operator_result is None")
 
 # 向用户展示 param_body
-
-print("建议参数：")
-print(state["param_body"])
-print(state["operator_result"]["cal_result"])
-print("请回复：yes（默认执行） 或 修改后的参数 / 自然语言修改")
-
-# 用户回复后，外部处理：
-
-# 用户说 "yes"：
-
-state["user_confirmed"] = True
-state["status"] = "running"
-state = graph.invoke(state)  
-# 继续执行
-
-
-# 用户说 "把 start_date 改成 20230601"：
-
-state["param_body"]["Start_date"] = "20230601"
-state["user_confirmed"] = True
-state["status"] = "running"
-state = graph.invoke(state)
+print(f"match result {result}")

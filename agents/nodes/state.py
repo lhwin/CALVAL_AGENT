@@ -23,6 +23,9 @@ class AgentState(TypedDict):
     selected_data: Annotated[Optional[Dict[str, Any]], "Selected data for processing"]
     metadata: Annotated[Optional[Dict[str, Any]], "Discovery metadata (e.g., next_step)"]
     
+    #can execute
+    can_execute: Annotated[str, "jugde task can execute"]
+
     # Recommendation
     recommendation: Annotated[Optional[Dict[str, Any]], "Method recommendation"]
     
@@ -43,3 +46,8 @@ class AgentState(TypedDict):
     # System
     messages: Annotated[list[AnyMessage], "Conversation messages"]
     status: Annotated[str, "pending|running|success|failed|blocked"]
+
+    # 知识库
+    kb_cases: Annotated[list, "Matched historical cases from knowledge base"] = [],
+    kb_suggestions: Annotated[Dict[str, Any], "KB suggested parameters from successful cases"] = {},
+    kb_warnings: Annotated[list, "KB failure warnings from failed cases"] = [],

@@ -21,6 +21,7 @@ from agents.nodes.method_recommendation_node import method_recommendation_node
 from agents.nodes.param_fill_node import param_fill_node
 from agents.nodes.user_confirm_node import user_confirm_node
 from agents.nodes.knowledge_base_node import knowledge_base_node
+from agents.nodes.judge_execute_node import judge_execute_node
 
 def create_workflow(debug: bool = False, checkpointer=None):
     """创建工作流图。"""
@@ -33,12 +34,31 @@ def create_workflow(debug: bool = False, checkpointer=None):
         "user_confirm": user_confirm_node,
         "execute_operator": execute_operator_node,
         "knowledge_base": knowledge_base_node,
+        "judge_execute": judge_execute_node
     }
     for name, func in nodes.items():
         graph_builder.add_node(name, func)
 
     graph_builder.set_entry_point("data_discovery")
-    graph_builder.add_edge("data_discovery", "task_parser")
+    graph_builder.add_edge("data_discovery", "judge_execute")
+   
+    def route_after_execute_parser(state: AgentState) -> Literal["method_recommendation", "param_fill"]:
+        execute = state.get("can_execute")
+        if execute:
+            return "task_parser"
+        # task_parser 已有 method 且字段齐全，跳过推荐节点；保留 task_parser 写入的 recommendation，避免 param_fill 拿不到
+        print("无法执行 结束流程")
+        return "END"
+
+    graph_builder.add_conditional_edges(
+        "judge_execute",
+        route_after_execute_parser,
+        {
+            "task_parser":"task_parser",
+            END:END
+        }
+    )
+
     graph_builder.add_edge("task_parser", "knowledge_base")
 
     def route_after_task_parser(state: AgentState) -> Literal["method_recommendation", "param_fill"]:

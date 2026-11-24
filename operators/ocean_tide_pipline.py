@@ -16,7 +16,8 @@ except:
     from operators.src.OceanTide.cal.func_GLSY_ALT_AUX_YCZ_GDR_CAL import func_ycz_cal_pro
     from operators.src.OceanTide.match.func_GLSY_ALT_GDR_AUX_YCZ_MATCH import func_ycz_matching_pro
     from operators.src.config import *
-
+import yaml
+from core.utils.utils import request_data
 f = open("config/settings.yaml", "r", encoding="utf-8")
 config = yaml.safe_load(f)
 api_address = config["serverdata"]["api_address"]
@@ -25,10 +26,32 @@ class OceanTideCalibration:
     """海洋潮汐外推定标 (卫星 vs 验潮站)。"""
 
     def __init__(self, config):
-        self.config = config
+        self.config = OceanTideItem(**config)
         self.logger = logging.getLogger("ocean_tide")
 
     def run(self) -> Dict[str, Any]:
+        t0 = time.time()
+        try:
+            # MATCH
+            match_result = request_data(api_address+"/oceantide/match", self.config.dict())# CAL: 把 MATCH 的输出目录作为 CAL 的输入
+
+            self.config.input = match_result["output_files"]["output_dir"]
+            cal_result = request_data(api_address+"/oceantide/cal", self.config.dict())
+
+            return {
+                "status": "success",
+                "execution_time": time.time() - t0,
+                "match_result": match_result,
+                "cal_result": cal_result,
+            }
+        except Exception as e:
+            return {
+                "status": "failed",
+                "error": str(e),
+                "execution_time": time.time() - t0,
+            }
+
+    def run_local(self) -> Dict[str, Any]:
         t0 = time.time()
         try:
             # MATCH

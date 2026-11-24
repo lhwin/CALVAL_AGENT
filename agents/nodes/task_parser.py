@@ -80,7 +80,7 @@ def _parse_with_llm(text: str, data_summary: Dict[str, Any] = None) -> Dict[str,
 请根据用户任务和可用数据范围，返回 JSON："""
 
     response = llm.chat([{"role": "user", "content": prompt}], system_prompt=system_prompt)
-
+    
     json_str = re.sub(r'^[^{]*', '', response)
     json_str = re.sub(r'[^}]*$', '', json_str)
     try:

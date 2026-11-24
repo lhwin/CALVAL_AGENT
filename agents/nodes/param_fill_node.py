@@ -1,4 +1,8 @@
 from agents.nodes.state import AgentState
+from agents.nodes.llm_client import LLMClient
+
+import re
+import json
 
 def param_fill_node(state: AgentState) -> AgentState:
     """参数体填充节点：根据方法自动读取 pipeline 参数模板并填充"""
@@ -125,6 +129,36 @@ def param_fill_node(state: AgentState) -> AgentState:
             "input_AUX": aux_input_dir,
             "output": f"output_local_test/{method}_0",
         }
+
+    llm = LLMClient()
+
+    case = state.get("kb_cases", {})
+
+    if case is not None and len(case) > 0:
+        param_fill_prompt = f"""
+        请根据以下信息生成 定标检验最终的参数体 JSON：
+    
+        这是最近解析的与此次任务 相近的任务输入与结果信息：\n \
+          操作参数{case[0]["operator_config"]} \n
+          这是任务解析结果：\
+          1、匹配结果{case[0]["match_result"]}\n \ 
+          2、计算结果{case[0]["cal_result"]} \
+        这是数据解析结果：\
+          {state['metadata']["data_summary"]["data_describe"] if state.get("available_datasets") else "无数据解析结果"}
+        目前已经确定的参数：{param_body} 你只需要返回json即可,你需要调节的参数有\
+      Match_time Select_Area distance_to_coast ocean_depth wind_speed"""
+    else:
+        param_fill_prompt = f"""
+        请根据以下信息生成 定标检验最终的参数体 JSON：
+    
+        这是数据解析结果：\
+          {state['metadata']["data_summary"]["data_describe"] if state.get("available_datasets") else "无数据解析结果"} \
+        目前已经确定的参数：{param_body} 你只需要返回json即可,你需要调节的参数有\
+      Match_time Select_Area distance_to_coast ocean_depth wind_speed"""
+    response = llm.chat(param_fill_prompt)
+    json_str = re.sub(r'^[^{]*', '', response)
+    json_str = re.sub(r'[^}]*$', '', json_str)
+    param_body = json.loads(json_str) if json_str else {}
 
     return {
         "param_body": param_body,

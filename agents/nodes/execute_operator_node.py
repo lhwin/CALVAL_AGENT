@@ -63,7 +63,10 @@ def execute_operator_node(state: AgentState) -> AgentState:
         })
 
     try:
-        result = op_cls.run()
+        if state["mode"] == "remote":
+            result = op_cls.run()
+        if state["mode"] == "local":
+            result = op_cls.run_local()
     except Exception as e:
         result = {"status": "failed", "error": str(e)}
 
@@ -87,7 +90,8 @@ def _save_kb_case(state: AgentState, method: str, parsed: dict, selected: dict, 
         "operator_config": state.get("param_body", {}),
         "status": result.get("status", "unknown"),
         "failure_reason": result.get("error") if result.get("status") == "failed" else None,
-        "metrics": result.get("metrics"),
+        "match_result": result.get("match_result").get("statistics"),
+        "cal_result": result.get("cal_result").get("statistics"),
         "created_at": datetime.now().isoformat(),
     }
 

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cal/Val Agent · 卫星高度计定标验证</title>
+<link rel="stylesheet" href="/static/styles.css?v=3" />
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">🛰️ Cal/Val Agent</div>
+  <div class="subtitle">LangGraph 驱动的卫星高度计定标验证智能体 · v2.0</div>
+  <div class="health" id="health">●</div>
+</header>
+
+<main class="container">
+  <!-- 1. 数据发现 -->
+  <section class="card" id="sec-discover">
+    <h2>1 · 数据发现</h2>
+    <div class="row">
+      <label>运行模式</label>
+      <select id="mode">
+        <option value="local">本地 (local)</option>
+        <option value="remote">远程 (remote)</option>
+      </select>
+      <button id="btn-discover">扫描数据</button>
+    </div>
+    <div id="discover-result" class="result-box"></div>
+  </section>
+
+  <!-- 2. 任务输入 -->
+  <section class="card" id="sec-task">
+    <h2>2 · 任务描述</h2>
+    <textarea id="task-text" rows="3" placeholder="例如：用 S6A 和 JA3 做 2023 年 5 月的星间交叉"></textarea>
+    <div class="row">
+      <button id="btn-judge">可执行性判断</button>
+      <button id="btn-parse">解析任务</button>
+      <button id="btn-kb">查询知识库</button>
+      <button id="btn-recommend">推荐方法</button>
+      <button id="btn-paramfill">智能化填充参数</button>
+    </div>
+    <div id="task-result" class="result-box"></div>
+  </section>
+
+  <!-- 3. 参数体确认 -->
+  <section class="card" id="sec-param">
+    <h2>3 · 参数体确认</h2>
+    <div class="row" style="margin-top:0;margin-bottom:10px">
+      <span id="confirm-badge" class="tag warn">未确认</span>
+      <span id="confirm-tip" class="log-line">参数体生成后可手动编辑、按自然语言修改，然后点击「确认参数」</span>
+    </div>
+    <textarea id="param-body" rows="18" spellcheck="false" placeholder="先在第 2 步点击「填充参数」生成参数体"></textarea>
+    <div class="row">
+      <input id="modify-hint" style="flex:1;min-width:260px"
+             placeholder="自然语言修改，如：把 Match_time 改成 1.5，Select_Area 改成 [-30,30,-120,120]" />
+      <button id="btn-modify">按说明修改</button>
+      <button id="btn-confirm">确认参数 (yes)</button>
+      <button id="btn-execute" class="primary" disabled>执行定标 (MATCH→CAL)</button>
+    </div>
+    <div id="exec-status" class="result-box"></div>
+  </section>
+
+  <!-- 4. 结果展示 -->
+  <section class="card" id="sec-result">
+    <h2>4 · 执行结果</h2>
+    <div id="result-view" class="result-box"></div>
+  </section>
+</main>
+
+<script src="/static/app.js?v=3"></script>
+</body>
+</html>

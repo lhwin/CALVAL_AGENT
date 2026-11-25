@@ -23,9 +23,6 @@ class AgentState(TypedDict):
     selected_data: Annotated[Optional[Dict[str, Any]], "Selected data for processing"]
     metadata: Annotated[Optional[Dict[str, Any]], "Discovery metadata (e.g., next_step)"]
     
-    #can execute
-    can_execute: Annotated[str, "jugde task can execute"]
-
     # Recommendation
     recommendation: Annotated[Optional[Dict[str, Any]], "Method recommendation"]
     

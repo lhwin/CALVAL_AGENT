@@ -2,7 +2,7 @@
 Task Parser - 用大模型解析用户自然语言，提取结构化任务信息。
 优先 LLM, 失败则 regex 兜底。
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import re
 import json
 from agents.nodes.llm_client import LLMClient
@@ -34,7 +34,52 @@ def parse_task(text: str, data_summary: Dict[str, Any] = None) -> Dict[str, Any]
 
     # regex 兜底
     result = _merge_regex(result, text)
+
+    # 日期合理性校验：LLM 没看到数据范围时会瞎填，这里用真实数据范围纠正
+    warn = _validate_date_range(result, data_summary)
+    if warn:
+        result["_warning"] = warn
     return result
+
+
+def _validate_date_range(result: Dict[str, Any], data_summary: Optional[Dict[str, Any]] = None) -> str:
+    """用 data_summary 里的真实卫星数据范围校验 start/end_date，越界则纠正并返回提示。"""
+    if not data_summary:
+        return ""
+    stats = data_summary.get("satellite_stats") or {}
+    if not stats:
+        return ""
+
+    sat = result.get("primary_sat")
+    st = stats.get(sat) if sat else None
+    if not st:
+        # 退而求其次：取所有卫星里覆盖最广的范围
+        ranges = [(v.get("start_date"), v.get("end_date")) for v in stats.values()
+                  if v.get("start_date") and v.get("end_date")]
+        if not ranges:
+            return ""
+        ranges.sort()
+        real_start, real_end = ranges[0][0], ranges[-1][1]
+    else:
+        real_start, real_end = st.get("start_date"), st.get("end_date")
+    if not real_start or not real_end:
+        return ""
+
+    sd, ed = result.get("start_date"), result.get("end_date")
+    if not sd or not ed:
+        return f"数据可用范围 {real_start}~{real_end}，但任务未给出日期，请补充。"
+
+    notes = []
+    if sd < real_start or sd > real_end:
+        result["start_date"] = real_start
+        notes.append(f"start_date {sd} 超出数据范围，已改为 {real_start}")
+    if ed < real_start or ed > real_end:
+        result["end_date"] = real_end
+        notes.append(f"end_date {ed} 超出数据范围，已改为 {real_end}")
+    if result["start_date"] > result["end_date"]:
+        result["start_date"], result["end_date"] = real_start, real_end
+        notes.append("起止日期颠倒，已重置为数据范围")
+    return "；".join(notes)
 
 
 
@@ -44,20 +89,8 @@ def _parse_with_llm(text: str, data_summary: Dict[str, Any] = None) -> Dict[str,
 
     
     # 构建数据分析结果的上下文信息
-    data_context = ""
-    if data_summary:
-        satellite_stats = data_summary.get("satellite_stats", {})
-        for sat_id, stats in satellite_stats.items():
-            file_count = satellite_stats.get(sat_id).get("nc_count", "未知")
-            time_range = stats.get("time_range", "未知")
-            start_date = satellite_stats.get(sat_id).get('start_date')
-            end_date = satellite_stats.get(sat_id).get('end_date')
-            data_context += f"卫星 {sat_id}: {file_count} 个文件，时间范围 {start_date}-{end_date}\n"
-
-        tide_summary = data_summary.get("tide_summary", {})
-        if tide_summary:
-            nc_count = tide_summary.get("nc_count", "未知")
-            data_context += f"验潮站数据：{nc_count} 个 NC 文件\n"
+    data_context = data_summary.get("data_describe", "无数据统计信息") if data_summary else "无数据统计信息"
+   
 
     system_prompt = """你是一个卫星高度计定标任务解析器。请从用户自然语言中提取结构化信息，并结合可用数据范围推荐合理的时间段。
 请严格返回 JSON：

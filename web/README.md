@@ -21,7 +21,6 @@ CALVAL_WEB_PORT=8088 "D:/Software/anaconda3/envs/llm/python.exe" -m uvicorn web.
 | 步骤 | 页面区块 | 调用接口 | 说明 |
 |------|----------|----------|------|
 | 1 | 数据发现 | `GET /api/discover?mode=local\|remote` | 扫描卫星/验潮站目录，生成 data_summary |
-| 2 | 可执行性判断 | `POST /api/judge` | LLM 判断现有数据是否可执行 |
 | 2 | 解析任务 | `POST /api/parse` | 自然语言 → 结构化 method/卫星/日期 |
 | 2 | 查询知识库 | `POST /api/kb` | 匹配历史案例 + 失败警告 |
 | 2 | 推荐方法 | `POST /api/recommend` | LLM 推荐或校验方法 |
@@ -57,7 +56,6 @@ web/
 - `GET  /api/settings` — 本地/远程数据路径配置
 - `GET  /api/discover?mode=local` — 数据发现
 - `POST /api/parse` — 任务解析
-- `POST /api/judge` — 可执行性判断
 - `POST /api/kb` — 知识库查询
 - `POST /api/recommend` — 方法推荐
 - `POST /api/param_fill` — 参数体生成

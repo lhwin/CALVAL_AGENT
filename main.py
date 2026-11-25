@@ -8,7 +8,7 @@ config = {"configurable": {"thread_id": "calval_001"}}
 graph = create_workflow(checkpointer=MemorySaver())
 
 initial_state = {
-    "task_text": "做一下验潮站外推",
+    "task_text": "做一下星间交叉",
     "parsed_task": None,
     "param_body": None,
     "user_confirmed": False,

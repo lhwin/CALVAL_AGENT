@@ -41,9 +41,9 @@ except Exception:
     pass
 
 from agents.data_adapter.explorer import LocalDataExplorer
+from agents.nodes.data_discovery_node import describe_data_summary
 from agents.nodes.task_parser import parse_task
 from agents.nodes.llm_client import LLMClient
-from agents.nodes import judge_execute_node as judge_mod
 from agents.nodes import method_recommendation_node as rec_mod
 from agents.nodes import knowledge_base_node as kb_mod
 from agents.nodes import param_fill_node as pf_mod
@@ -88,6 +88,8 @@ def run_discovery(mode: str) -> dict:
         "total_nc_files": report.get("total_nc_files", 0),
         "total_txt_files": report.get("total_txt_files", 0),
         "matched_sats": report.get("matched_sats", []),
+        # 关键：生成给 LLM 阅读的中文摘要，否则 task_parser 拿不到数据范围会乱填日期
+        "data_describe": describe_data_summary(report),
     }
     return {"report": report, "data_summary": data_summary}
 
@@ -127,9 +129,25 @@ def parse(body: dict):
     if not text:
         raise HTTPException(400, "task_text 不能为空")
     data_summary = body.get("data_summary") or {}
+    # 前端没传 data_summary（用户没点「扫描数据」）时，自动跑一次数据发现，
+    # 否则 LLM 看不到真实数据范围会乱填日期。
+    auto_discovered = False
+    if not data_summary.get("data_describe"):
+        try:
+            data_summary = run_discovery("local")["data_summary"]
+            auto_discovered = True
+        except Exception as e:
+            print(f"[auto discover failed: {e}]")
     try:
         parsed = parse_task(text, data_summary)
-        return {"ok": True, "parsed": parsed}
+        return {
+            "ok": True,
+            "parsed": parsed,
+            # 回传数据描述，前端可直接展示解析依据（即使没点过「扫描数据」）
+            "data_describe": data_summary.get("data_describe", ""),
+            "warning": parsed.get("_warning", ""),
+            "auto_discovered": auto_discovered,
+        }
     except Exception as e:
         raise HTTPException(500, f"解析失败: {e}")
 
@@ -150,33 +168,6 @@ def kb_query(body: dict):
         }
     except Exception as e:
         raise HTTPException(500, f"知识库查询失败: {e}")
-
-
-@app.post("/api/judge")
-def judge(body: dict):
-    """LLM 判断任务能否执行。返回 can_execute/reason/suggest。"""
-    text = (body.get("task_text") or "").strip()
-    data_summary = body.get("data_summary") or {}
-    if not text:
-        raise HTTPException(400, "task_text 不能为空")
-    try:
-        llm = LLMClient()
-        prompt = f"""
-        下面是数据统计结果
-        data_summary: {data_summary.get('data_describe', '无')}
-        这是用户任务：{text}
-        请判断现有数据是否可执行。返回 JSON：
-        {{"can_execute": true/false, "reason": "...", "suggest": "..."}}
-        """
-        res = llm.chat([{"role": "user", "content": prompt}])
-        s = res[res.find("{"): res.rfind("}") + 1] if "{" in res else "{}"
-        try:
-            data = json.loads(s)
-        except json.JSONDecodeError:
-            data = {"can_execute": True, "reason": "", "suggest": ""}
-        return {"ok": True, **data}
-    except Exception as e:
-        return {"ok": False, "can_execute": True, "reason": f"judge 失败(降级可执行): {e}", "suggest": ""}
 
 
 @app.post("/api/recommend")

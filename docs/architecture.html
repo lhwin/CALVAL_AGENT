@@ -87,18 +87,17 @@
       <line x1="330" y1="205" x2="330" y2="252" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow)"/>
       <line x1="760" y1="205" x2="760" y2="252" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow)"/>
 
-      <!-- row1: DD -> JE -> TP -> KB -->
-      <line x1="390" y1="300" x2="428" y2="300" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
-      <line x1="720" y1="300" x2="758" y2="300" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
-      <line x1="1050" y1="300" x2="1088" y2="300" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
+      <!-- row1: DD -> TP -> KB -->
+      <line x1="390" y1="300" x2="584" y2="300" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
+      <line x1="880" y1="300" x2="1074" y2="300" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
 
       <!-- KB -> MR (down) -->
-      <line x1="1235" y1="330" x2="1235" y2="378" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
+      <line x1="1225" y1="330" x2="1225" y2="396" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
 
       <!-- row2 right->left: MR -> PF -> UC -> EO -->
-      <line x1="1088" y1="430" x2="1050" y2="430" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
-      <line x1="758" y1="430" x2="720" y2="430" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
-      <line x1="428" y1="430" x2="390" y2="430" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
+      <line x1="1088" y1="430" x2="1056" y2="430" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
+      <line x1="758" y1="430" x2="726" y2="430" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
+      <line x1="428" y1="430" x2="396" y2="430" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
 
       <!-- EO -> 算子层 -->
       <line x1="245" y1="460" x2="245" y2="640" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrowG)"/>
@@ -106,13 +105,11 @@
       <path d="M 300 460 L 300 600 L 1600 600 L 1600 470" fill="none" stroke="#a78bfa"
             stroke-width="1.6" stroke-dasharray="6,5" marker-end="url(#arrowV)"/>
       <!-- KB -> 知识库 (read, dashed) -->
-      <line x1="1380" y1="300" x2="1478" y2="300" stroke="#a78bfa" stroke-width="1.6"
+      <line x1="1370" y1="300" x2="1478" y2="300" stroke="#a78bfa" stroke-width="1.6"
             stroke-dasharray="6,5" marker-end="url(#arrowV)"/>
 
-      <!-- data_discovery -> 数据适配层 -->
-      <line x1="1420" y1="330" x2="1560" y2="330" stroke="#64748b" stroke-width="1.4"
-            stroke-dasharray="4,4" marker-end="url(#arrow)"/>
-      <path d="M 1560 330 L 1560 830 L 1420 830" fill="none" stroke="#64748b"
+      <!-- 工作流层 -> 数据适配层 -->
+      <path d="M 1400 500 L 1560 500 L 1560 830 L 1420 830" fill="none" stroke="#64748b"
             stroke-width="1.4" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
 
       <!-- ══════════ 层级 1：用户界面层 ══════════ -->
@@ -131,7 +128,7 @@
 
       <!-- ══════════ 层级 2：工作流引擎 ══════════ -->
       <rect x="60" y="250" width="1380" height="250" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="1.2"/>
-      <text x="84" y="278" fill="#64748b" font-size="12" letter-spacing="1">LangGraph 工作流引擎 · 8 个节点</text>
+      <text x="84" y="278" fill="#64748b" font-size="12" letter-spacing="1">LangGraph 工作流引擎 · 7 个节点</text>
 
       <!-- row1 -->
       <g>
@@ -141,22 +138,16 @@
         <text x="118" y="313" fill="#6ee7b7" font-size="9">数据发现 · 卫星/验潮站统计</text>
       </g>
       <g>
-        <rect x="430" y="272" width="290" height="56" rx="6" fill="#0f172a"/>
-        <rect x="430" y="272" width="290" height="56" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
-        <text x="448" y="295" fill="#e2e8f0" font-size="12">judge_execute</text>
-        <text x="448" y="313" fill="#6ee7b7" font-size="9">可执行性判断 · 可交互改任务</text>
+        <rect x="590" y="272" width="290" height="56" rx="6" fill="#0f172a"/>
+        <rect x="590" y="272" width="290" height="56" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="608" y="295" fill="#e2e8f0" font-size="12">task_parser</text>
+        <text x="608" y="313" fill="#6ee7b7" font-size="9">自然语言 → 结构化任务</text>
       </g>
       <g>
-        <rect x="760" y="272" width="290" height="56" rx="6" fill="#0f172a"/>
-        <rect x="760" y="272" width="290" height="56" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
-        <text x="778" y="295" fill="#e2e8f0" font-size="12">task_parser</text>
-        <text x="778" y="313" fill="#6ee7b7" font-size="9">自然语言 → 结构化任务</text>
-      </g>
-      <g>
-        <rect x="1090" y="272" width="290" height="56" rx="6" fill="#0f172a"/>
-        <rect x="1090" y="272" width="290" height="56" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
-        <text x="1108" y="295" fill="#e2e8f0" font-size="12">knowledge_base</text>
-        <text x="1108" y="313" fill="#6ee7b7" font-size="9">历史案例匹配 · 建议/警告</text>
+        <rect x="1080" y="272" width="290" height="56" rx="6" fill="#0f172a"/>
+        <rect x="1080" y="272" width="290" height="56" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1098" y="295" fill="#e2e8f0" font-size="12">knowledge_base</text>
+        <text x="1098" y="313" fill="#6ee7b7" font-size="9">历史案例匹配 · 建议/警告</text>
       </g>
 
       <!-- row2 (right to left) -->

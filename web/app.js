@@ -203,27 +203,6 @@ function taskText() {
   return $("task-text").value.trim();
 }
 
-async function doJudge() {
-  const btn = $("btn-judge");
-  const box = $("task-result");
-  if (!taskText()) return (box.innerHTML = `<p class="log-line err">请先填写任务描述</p>`);
-  busy(btn, true, "判断中…");
-  box.innerHTML = `<span class="spinner"></span>LLM 判断可执行性…`;
-  try {
-    const d = await api("/api/judge", {
-      method: "POST",
-      body: JSON.stringify({ task_text: taskText(), data_summary: state.dataSummary || {} }),
-    });
-    const kind = d.can_execute ? "ok" : "warn";
-    box.innerHTML = `<div>${tag(d.can_execute ? "可执行" : "不可直接执行", kind)}</div>` +
-      kvTable({ reason: d.reason || "-", suggest: d.suggest || "-" });
-  } catch (e) {
-    box.innerHTML = `<p class="log-line err">${esc(e.message)}</p>`;
-  } finally {
-    busy(btn, false);
-  }
-}
-
 async function doParse() {
   const btn = $("btn-parse");
   const box = $("task-result");
@@ -238,12 +217,18 @@ async function doParse() {
     state.parsed = d.parsed;
     const p = d.parsed;
     const missing = ["method", "primary_sat", "start_date", "end_date"].filter((k) => !p[k]);
+    const desc = d.data_describe || (state.dataSummary && state.dataSummary.data_describe) || "";
     box.innerHTML =
       `<div>${tag("method: " + (p.method || "?"), p.method ? "ok" : "warn")}` +
       `${tag("主星: " + (p.primary_sat || "?"), p.primary_sat ? "ok" : "warn")}` +
       `${tag("辅星: " + (p.aux_data_type || "-"), "info")}` +
-      `${tag("日期: " + (p.start_date || "?") + " ~ " + (p.end_date || "?"), "info")}</div>` +
+      `${tag("日期: " + (p.start_date || "?") + " ~ " + (p.end_date || "?"), p.start_date && p.end_date ? "info" : "err")}</div>` +
       (missing.length ? `<p class="log-line err">缺失字段: ${esc(missing.join(", "))}</p>` : "") +
+      (d.warning ? `<p class="log-line warn">⚠ ${esc(d.warning)}</p>` : "") +
+      (d.auto_discovered ? `<p class="log-line">ℹ 已自动扫描本地数据以确定可用范围</p>` : "") +
+      (desc
+        ? `<details style="margin-top:10px"><summary class="log-line">📊 本次解析依据的数据描述（点击展开）</summary><pre class="json">${esc(desc)}</pre></details>`
+        : `<p class="log-line warn">⚠ 未获取到数据描述，LLM 无法判断真实数据范围，日期可能不准。请先在第 1 步点击「扫描数据」。</p>`) +
       jsonBlock(p);
   } catch (e) {
     box.innerHTML = `<p class="log-line err">${esc(e.message)}</p>`;
@@ -587,22 +572,29 @@ function zoomImg(src) {
 }
 
 // ─── 参数体手动编辑重置确认 ───
-$("param-body").addEventListener("input", () => {
+const paramBodyEl = $("param-body");
+if (paramBodyEl) paramBodyEl.addEventListener("input", () => {
   if (state.confirmed) setConfirmed(false);
 });
 
 // ───────────── 事件绑定 ─────────────
+// 容错绑定：元素缺失时跳过，避免单个按钮缺失导致后续绑定全部中断
+function bind(id, handler) {
+  const el = $(id);
+  if (el) el.onclick = handler;
+}
 
-$("btn-discover").onclick = doDiscover;
-$("btn-judge").onclick = doJudge;
-$("btn-parse").onclick = doParse;
-$("btn-kb").onclick = doKb;
-$("btn-recommend").onclick = doRecommend;
-$("btn-paramfill").onclick = doParamFill;
-$("btn-confirm").onclick = doConfirm;
-$("btn-modify").onclick = doModify;
-$("btn-execute").onclick = doExecute;
-$("mode").onchange = (e) => (state.mode = e.target.value);
+bind("btn-discover", doDiscover);
+bind("btn-parse", doParse);
+bind("btn-kb", doKb);
+bind("btn-recommend", doRecommend);
+bind("btn-paramfill", doParamFill);
+bind("btn-confirm", doConfirm);
+bind("btn-modify", doModify);
+bind("btn-execute", doExecute);
+
+const modeSel = $("mode");
+if (modeSel) modeSel.onchange = (e) => (state.mode = e.target.value);
 
 checkHealth();
 setInterval(checkHealth, 30000);

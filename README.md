@@ -72,7 +72,6 @@ cd D:/BaiduSyncdisk/project/202610/calval_agent
 | 节点 | 输入 | 输出 |
 |------|------|------|
 | `data_discovery` | `config/settings.yaml` | `available_datasets`、`selected_data`、`metadata.data_summary` |
-| `judge_execute` | `task_text`、`data_summary.data_describe` | `can_execute`、`reason`、`suggest`（可 interrupt 询问用户） |
 | `task_parser` | `task_text`、`data_summary` | `parsed_task`、`branch_path` |
 | `knowledge_base` | `parsed_task`、`data/kb_cases.json` | `kb_cases`、`kb_suggestions`、`kb_warnings` |
 | `method_recommendation` | `parsed_task`、`available_datasets` | `recommendation`（action/method/confidence/reasoning） |
@@ -91,7 +90,6 @@ calval_agent/
 │   ├── nodes/
 │   │   ├── state.py                    # AgentState 状态定义
 │   │   ├── data_discovery_node.py      # 数据扫描 + 统计摘要
-│   │   ├── judge_execute_node.py       # LLM 可执行性判断（可交互改任务）
 │   │   ├── task_parser_node.py         # 任务解析节点
 │   │   ├── task_parser.py              # 自然语言 → 结构化任务（LLM + regex）
 │   │   ├── knowledge_base_node.py      # 历史案例匹配与建议
@@ -177,7 +175,7 @@ serverdata:
 启动后浏览器访问 `http://127.0.0.1:8088`，页面分四步：
 
 1. **数据发现** — 扫描卫星/验潮站/模型数据，展示完整统计（验潮站表、HY-2B 表、辅助模型键值）
-2. **任务描述** — 可执行性判断 / 解析任务 / 查询知识库 / 推荐方法 / 智能化填充参数
+2. **任务描述** — 解析任务 / 查询知识库 / 推荐方法 / 智能化填充参数
 3. **参数体确认** — 手动编辑、自然语言修改、确认参数
 4. **执行结果** — 统计表格、图片预览、输出文件下载
 
@@ -189,7 +187,6 @@ serverdata:
 | GET  | `/api/settings` | 本地/远程数据路径配置 |
 | GET  | `/api/discover?mode=local\|remote` | 数据发现 |
 | POST | `/api/parse` | 任务解析 |
-| POST | `/api/judge` | 可执行性判断 |
 | POST | `/api/kb` | 知识库查询 |
 | POST | `/api/recommend` | 方法推荐 |
 | POST | `/api/param_fill` | 参数体生成 |
@@ -207,25 +204,22 @@ serverdata:
 扫描卫星数据和验潮站数据，生成 `metadata.data_summary`（含卫星统计、验潮站详情、模型状态、文字描述）。
 `describe_data_summary()` 生成给 LLM 读的中文摘要，覆盖验潮站站名/经纬度/文件数/日期范围、HY-2B、FES2014、MSS。
 
-### 节点 2 · Judge Execute
-LLM 判断现有数据是否可执行。若不可直接执行，会 `interrupt()` 询问用户是否修改任务，用户回复后由 LLM 重写 `task_text`。
-
-### 节点 3 · Task Parser
+### 节点 2 · Task Parser
 自然语言 → 结构化任务（`method`、`primary_sat`、`aux_data_type`、`start_date`、`end_date` 等），LLM 优先 + regex 兜底。
 
-### 节点 4 · Knowledge Base
+### 节点 3 · Knowledge Base
 匹配历史案例，输出 `kb_suggestions`（成功案例参数建议）和 `kb_warnings`（失败案例原因），避免重复踩坑。
 
-### 节点 5 · Method Recommendation（可跳过）
+### 节点 4 · Method Recommendation（可跳过）
 `parsed_task.method` 为空时用 LLM 推荐；已有方法则仅校验数据条件。
 
-### 节点 6 · Param Fill
+### 节点 5 · Param Fill
 按方法填充完整参数体，并用 LLM 微调 `Match_time`、`Select_Area`、`distance_to_coast`、`ocean_depth`、`wind_speed`。
 
-### 节点 7 · User Confirm
+### 节点 6 · User Confirm
 `interrupt()` 挂起，等待用户 `yes` 或自然语言修改。自然语言修改会调用 LLM 生成 JSON patch，更新 `param_body`。
 
-### 节点 8 · Execute Operator
+### 节点 7 · Execute Operator
 根据 `recommendation.method` 调用对应算子执行 MATCH→CAL，执行后把案例追加写入 `data/kb_cases.json`（去重，保留最近 200 条）。
 
 ---
@@ -286,7 +280,6 @@ echo "DEEPSEEK_API_KEY=sk-xxxx" >> .env
 | 模块 | 功能 |
 |------|------|
 | `data_discovery` | 卫星 + 验潮站 + 模型数据扫描与统计 |
-| `judge_execute` | LLM 可执行性判断 + 交互式任务修订 |
 | `task_parser` | LLM+regex 解析自然语言 |
 | `knowledge_base` | 匹配历史案例，输出建议与警告 |
 | `method_recommendation` | LLM 推荐方法，或校验已有方法 |
@@ -347,4 +340,4 @@ echo "DEEPSEEK_API_KEY=sk-xxxx" >> .env
 
 ---
 
-**Last Updated**: 2026-11-24 · **Version**: 2.1（Web 界面 + 验潮站统计增强 + judge_execute 节点）
+**Last Updated**: 2026-11-24 · **Version**: 2.2（Web 界面 + 验潮站统计增强 · 移除 judge_execute 节点，工作流精简为 7 节点）

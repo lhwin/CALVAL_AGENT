@@ -15,7 +15,7 @@ llm:
   # base_url: "http://localhost:11434"  # Ollama 本地模型
   
   # 模型名称
-  model_name: "deepseek-v4-pro"
+  model_name: "deepseek-v4.1-flash"
   # model_name: "gpt-4o-mini"  # OpenAI
   # model_name: "claude-3-haiku-20240307"  # Anthropic
   # model_name: "llama3.1"  # Ollama

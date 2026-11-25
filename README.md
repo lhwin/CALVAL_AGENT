@@ -63,56 +63,9 @@ cd D:/BaiduSyncdisk/project/202610/calval_agent
 
 ### 层级视图
 
-```mermaid
-graph TD
-    subgraph UI["用户界面层"]
-        WEB["Web 界面<br/>web/server.py"]
-        CLI["CLI 入口<br/>main.py"]
-    end
+![Cal/Val Agent 系统架构图](docs/architecture.png)
 
-    subgraph WF["LangGraph 工作流引擎（8 个节点）"]
-        DD["data_discovery<br/>数据发现"]
-        JE["judge_execute<br/>可执行性判断"]
-        TP["task_parser<br/>任务解析"]
-        KB["knowledge_base<br/>历史案例"]
-        MR["method_recommendation<br/>方法推荐"]
-        PF["param_fill<br/>参数填充"]
-        UC["user_confirm<br/>参数确认"]
-        EO["execute_operator<br/>算子执行"]
-    end
-
-    subgraph OPS["算子包装器层"]
-        SC["StarCross"]
-        SFC["SelfCross"]
-        S0["Sig0Cross"]
-        OT["OceanTide"]
-    end
-
-    subgraph DATA["数据适配层"]
-        EXP["LocalDataExplorer<br/>卫星 + 验潮站扫描"]
-        IPF["IPFUtils.MyIPFConfig<br/>XML 工单"]
-    end
-
-    KBJSON[("kb_cases.json<br/>知识库")]
-
-    WEB --> DD
-    CLI --> DD
-    DD --> JE
-    JE --> TP
-    TP --> KB
-    KB --> MR
-    KB -.-> PF
-    MR --> PF
-    PF --> UC
-    UC --> EO
-    EO --> KBJSON
-    EO --> SC
-    EO --> SFC
-    EO --> S0
-    EO --> OT
-    DD --> EXP
-    DD --> IPF
-```
+> 高清交互版（HTML + SVG）：[docs/architecture.html](docs/architecture.html)（浏览器直接打开，支持缩放查看）
 
 ### 节点输入输出速查
 

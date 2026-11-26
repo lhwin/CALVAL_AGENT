@@ -3,7 +3,7 @@
 **LangGraph 驱动的自动化定标工作流**，覆盖星间交叉、星自交叉、SIG0 交叉、验潮站外推四种定标方法。
 支持自然语言下达任务、LLM 推荐方法、历史案例复用、参数体智能填充，以及一键执行 MATCH→CAL。
 
-✨ **核心特性**：LLM 任务解析 · 方法智能推荐 · 历史案例记忆 · 参数体智能填充 · 自然语言改参 · Web 可视化界面 · 验潮站数据自动统计
+✨ **核心特性**：LLM 任务解析 · 方法智能推荐 · 历史案例记忆 · 参数体智能填充 · 自然语言改参 · 质量评价与自动重试（规划中）· Web 可视化界面 · 验潮站数据自动统计
 
 ---
 
@@ -78,6 +78,7 @@ cd D:/BaiduSyncdisk/project/202610/calval_agent
 | `param_fill` | `parsed_task`、`kb_suggestions` | `param_body`、`status: awaiting_user_confirm` |
 | `user_confirm` | `param_body`、`user_confirmed` | `param_body`（可能被修改）、`user_confirmed=True` |
 | `execute_operator` | `recommendation.method`、`param_body` | `operator_result`、`status`（并追加写入知识库） |
+| `quality_evaluation` 🟡 | `operator_result.statistics`、`retry_count` | `quality_status`、`quality_score`、`quality_issues`、自增后的 `retry_count`（规划中） |
 
 ---
 
@@ -123,6 +124,9 @@ calval_agent/
 │   ├── run.bat / run.sh
 │   └── README.md
 ├── main.py                             # CLI 入口
+├── docs/
+│   ├── architecture.html               # 架构图（HTML/SVG 可缩放原图）
+│   └── architecture.png                # 架构图（PNG，README 引用）
 ├── .env                                # API 密钥（已 gitignore）
 ├── .gitignore
 ├── LICENSE
@@ -222,6 +226,14 @@ serverdata:
 ### 节点 7 · Execute Operator
 根据 `recommendation.method` 调用对应算子执行 MATCH→CAL，执行后把案例追加写入 `data/kb_cases.json`（去重，保留最近 200 条）。
 
+### 节点 8 · Quality Evaluation 🟡（规划中）
+读取 `operator_result.statistics`，按算子类型逐项打分（星间/自交叉看 `mean_diff`、`rmse`、`r_squared`、有效点占比；SIG0 看 `bias`、`corr_coef`、匹配对数；验潮站看匹配点数、剔除率、全局标准差），输出 `quality_status` / `quality_score` / `quality_issues`。
+
+- **过关**（score ≥ 60）→ 直接 `END`。
+- **不过关且 `retry_count` 未达上限** → 标记 `retry_needed`，由 LLM 依据 `quality_issues` 生成参数补丁（放宽 `Select_Area` / `distance_to_coast` / `Match_time`，或收紧 `ocean_depth` / `wind_speed`）后重跑 `param_fill → user_confirm → execute_operator`。
+- **超过重试上限**（默认 2 次）→ `status = failed`，写知识库一次后 `END`。
+- 阈值集中在 `config/quality_thresholds.yaml`，不硬编码；知识库只在最终结果处写入一次，避免重试循环污染 `kb_cases.json`。
+
 ---
 
 ## 🛠️ 配置 LLM
@@ -292,9 +304,24 @@ echo "DEEPSEEK_API_KEY=sk-xxxx" >> .env
 
 | 模块 | 功能 | 计划 |
 |------|------|------|
-| `fallback` | 算子失败后自动调整参数重跑 | Week 7–8 |
+| `quality_evaluation` | 质量评价节点：按算子统计指标打分，不过关则带问题清单自动重试 | 层级 2 · 进行中 |
+| `fallback` | 算子失败后自动调整参数重跑（与 `quality_evaluation` 共用重试通道） | Week 7–8 |
 | `KnowledgeBase` 写入完善 | 每次执行后把案例持久化到 `kb_cases.json` | 已集成在 `execute_operator_node` |
 | CLI / API 包装 | 对外给 Feishu 调用的入口 | 规划中 |
+
+### 🔮 规划中（层级 3）— RSI 模型自主进化
+
+> **RSI（Recursive Self-Improvement，递归自我改进）**：让 Agent 从自己的运行历史中持续学习，改进自身的提示词、参数策略与阈值，而不是只做一次性推理。
+
+| 模块 | 功能 | 说明 |
+|------|------|------|
+| `quality_evaluation` 反馈闭环 | 把 `quality_issues` + 最终 `quality_score` 回写知识库，形成「失败原因 → 参数调整」的可检索经验 | 层级 3 的数据基础，层级 2 完成后即可积累 |
+| 阈值自调节 | 依据历史通过率/失败分布，自动收窄或放宽 `quality_thresholds.yaml`，而非人工拍板 | 需先积累 ≥ N 条案例，防止过拟合 |
+| 提示词自进化 | 用历史成功案例的参数组合反推 `param_fill` / `method_recommendation` 的提示词补丁，版本化保存并灰度生效 | 每次进化保留可回滚版本 |
+| 策略路由自学习 | 记录「方法 × 卫星 × 日期范围 × 参数 → 质量得分」，逐步替代纯 LLM 推荐，形成数据驱动的路由表 | 与 `knowledge_base` 共用案例库 |
+| 回归评测集 | 固定一批基准任务，每次自进化后自动回放，得分下降即自动回滚 | 防止进化把效果改坏 |
+
+**演进原则**：先有可度量的评价（层级 2 `quality_evaluation`），才谈得上进化（层级 3 RSI）——没有质量分数的历史数据，自进化只能靠猜。
 
 ---
 
@@ -340,4 +367,4 @@ echo "DEEPSEEK_API_KEY=sk-xxxx" >> .env
 
 ---
 
-**Last Updated**: 2026-11-24 · **Version**: 2.2（Web 界面 + 验潮站统计增强 · 移除 judge_execute 节点，工作流精简为 7 节点）
+**Last Updated**: 2026-11-26 · **Version**: 2.3（规划：质量评价节点 `quality_evaluation` + RSI 模型自主进化路线 · 当前工作流仍为 7 节点）

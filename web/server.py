@@ -47,6 +47,13 @@ from agents.nodes.llm_client import LLMClient
 from agents.nodes import method_recommendation_node as rec_mod
 from agents.nodes import knowledge_base_node as kb_mod
 from agents.nodes import param_fill_node as pf_mod
+from agents.nodes.quality_eval_node import (
+    evaluate_quality as check_quality,
+    flatten_operator_result,
+    PASS_LINE,
+    MAX_RETRIES,
+    DEFAULT_THRESHOLDS,
+)
 import yaml
 
 app = FastAPI(title="Cal/Val Agent Web API", version="1.0.0")
@@ -368,36 +375,126 @@ def param_fill(body: dict):
 JOBS: Dict[str, Dict[str, Any]] = {}
 
 
-def _run_job(job_id: str, method: str, param_body: dict, mode: str):
+def _invoke_operator(method: str, param_body: dict, mode: str) -> dict:
+    """按方法构造算子并执行一次（MATCH→CAL）。"""
+    if method == "star_cross":
+        from operators.star_cross_pipline import StarCrossCalibration
+        op = StarCrossCalibration(param_body)
+    elif method == "self_cross":
+        from operators.self_cross_pipline import SelfCrossCalibration
+        op = SelfCrossCalibration(param_body)
+    elif method == "sig0_cross":
+        from operators.sig0_cross_pipline import Sig0CrossCalibration
+        op = Sig0CrossCalibration(param_body)
+    elif method in ("ycz_match", "tide_ext"):
+        from operators.ocean_tide_pipline import OceanTideCalibration
+        op = OceanTideCalibration(param_body)
+    else:
+        raise ValueError(f"未知方法: {method}")
+
+    if mode == "remote":
+        return op.run()
+    if hasattr(op, "run_local"):
+        return op.run_local()
+    return op.run()
+
+
+# 参与自动重试调参的字段（与 param_fill 的 LLM 微调白名单一致）
+_TUNABLE_KEYS = ("Match_time", "Select_Area", "distance_to_coast", "ocean_depth", "wind_speed")
+
+
+def _to_int(value, default: int) -> int:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _adjust_params(param_body: dict, issues: list) -> dict:
+    """
+    按质量评价给出的问题清单，规则化调整参数后重跑。
+    issues 里的字段名形如 "mean_diff_m=9.9 越过阈值 3.0"，直接匹配字段名比中文关键词可靠。
+    """
+    pb = dict(param_body or {})
+    names = {str(i).split("=")[0].strip() for i in (issues or [])}
+    # 缺字段（"缺少 xxx 字段"）也算对应指标异常，走同一调整
+    if "无匹配点" in " ".join(issues or []):
+        names |= {"mean_diff_m", "rmse_m", "valid_ratio"}
+
+    # 空间/时间筛选太严：匹配点少、有效占比低、差值/离散度大
+    if names & {"mean_diff_m", "rmse_m", "valid_ratio", "total_match_points", "count"}:
+        pb["Select_Area"] = "[-70,70,-180,180]"
+        pb["distance_to_coast"] = max(0, _to_int(pb.get("distance_to_coast"), 50) - 20)
+        pb["Match_time"] = str(min(4.0, _to_float(pb.get("Match_time"), 2.0) + 1.0))
+
+    # 相关性差 / 离群点多：收紧水深与风速
+    if names & {"r_squared", "corr_coef", "global_std_cm", "percent"}:
+        pb["ocean_depth"] = min(5000, _to_int(pb.get("ocean_depth"), 1000) + 500)
+        pb["wind_speed"] = "[0,30]"
+
+    # 剔除率过高：放宽风速上限
+    if "percent" in names:
+        pb["wind_speed"] = "[0,50]"
+
+    return normalize_param_body(pb)
+
+
+def _run_job(job_id: str, method: str, param_body: dict, mode: str,
+             max_retries: Optional[int] = None):
+    """后台执行：算子 → 质量评价 →（不过关则调参重跑）→ 汇总写入 JOBS。"""
     try:
         JOBS[job_id]["status"] = "running"
-        # 按需导入 pipeline，避免 sig0/ocean 的导入错误
-        if method == "star_cross":
-            from operators.star_cross_pipline import StarCrossCalibration
-            op = StarCrossCalibration(param_body)
-        elif method == "self_cross":
-            from operators.self_cross_pipline import SelfCrossCalibration
-            op = SelfCrossCalibration(param_body)
-        elif method == "sig0_cross":
-            from operators.sig0_cross_pipline import Sig0CrossCalibration
-            op = Sig0CrossCalibration(param_body)
-        elif method in ("ycz_match", "tide_ext"):
-            from operators.ocean_tide_pipline import OceanTideCalibration
-            op = OceanTideCalibration(param_body)
-        else:
-            raise ValueError(f"未知方法: {method}")
+        limit = MAX_RETRIES if max_retries is None else max(0, int(max_retries))
 
-        if mode == "remote":
-            result = op.run()
-        else:
-            if hasattr(op, "run_local"):
-                result = op.run_local()
-            else:
-                result = op.run()
+        attempts: List[Dict[str, Any]] = []
+        current = dict(param_body)
+        attempt = 0
+        result: Dict[str, Any] = {}
+        report: Dict[str, Any] = {}
+
+        while True:
+            JOBS[job_id]["attempt"] = attempt + 1
+            JOBS[job_id]["max_attempts"] = limit + 1
+
+            t0 = time.time()
+            result = _invoke_operator(method, current, mode)
+            report = check_quality(flatten_operator_result(result), method, attempt)
+
+            attempts.append({
+                "attempt": attempt + 1,
+                "status": result.get("status"),
+                "pass": bool(report["pass"]),
+                "score": report["score"],
+                "issues": report["issues"],
+                "elapsed": round(time.time() - t0, 1),
+                "params": {k: current.get(k) for k in _TUNABLE_KEYS if k in current},
+            })
+
+            # 过关、或已达重试上限 → 收尾
+            if report["pass"] or attempt >= limit:
+                break
+
+            attempt += 1
+            current = _adjust_params(current, report["issues"])
+            JOBS[job_id]["param_body"] = _make_jsonable(current)
 
         JOBS[job_id].update({
             "status": "done",
             "result": _make_jsonable(result),
+            "quality": {
+                "status": "pass" if report["pass"] else "failed",
+                "score": report["score"],
+                "issues": report["issues"],
+                "pass_line": PASS_LINE,
+                "attempts": attempts,
+            },
             "finished_at": time.time(),
         })
     except Exception as e:
@@ -439,11 +536,23 @@ def _make_jsonable(obj):
     return obj
 
 
+@app.get("/api/quality_rules")
+def quality_rules():
+    """质量评价阈值与重试上限，供前端展示。"""
+    return {
+        "ok": True,
+        "pass_line": PASS_LINE,
+        "max_retries": MAX_RETRIES,
+        "thresholds": DEFAULT_THRESHOLDS,
+    }
+
+
 @app.post("/api/execute")
 def execute(body: dict):
     method = body.get("method")
     param_body = normalize_param_body(body.get("param_body") or {})
     mode = body.get("mode", "local")
+    max_retries = body.get("max_retries")
     if not method:
         raise HTTPException(400, "method 不能为空")
     if not param_body:
@@ -456,9 +565,14 @@ def execute(body: dict):
         "method": method,
         "mode": mode,
         "param_body": _make_jsonable(param_body),
+        "max_retries": max_retries,
         "started_at": time.time(),
     }
-    th = threading.Thread(target=_run_job, args=(job_id, method, param_body, mode), daemon=True)
+    th = threading.Thread(
+        target=_run_job,
+        args=(job_id, method, param_body, mode, max_retries),
+        daemon=True,
+    )
     th.start()
     return {"ok": True, "job_id": job_id, "status": "queued"}
 

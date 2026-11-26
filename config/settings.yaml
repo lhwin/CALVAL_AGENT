@@ -20,6 +20,6 @@ localdata:
   hy2bgdr: "D:/BaiduSyncdisk/project/202610/data/HY-2BGDR"
 
 serverdata:
-  api_address: "http://192.168.240.133:8000"
+  api_address: "http://192.168.240.1:8000"
   satelite: "/home/leehir/data/satelite"
   oceantide: "/home/leehir/data/oceantide"

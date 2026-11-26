@@ -70,11 +70,18 @@ def execute_operator_node(state: AgentState) -> AgentState:
     except Exception as e:
         result = {"status": "failed", "error": str(e)}
 
+    result = dict(result)
+    result["method"] = method
+
     return {
         "operator_result": result,
+        "quality_status": "pending",
         "status": "success" if result.get("status") == "success" else "failed",
-        "logs": state["logs"] + [{"event": "operator_executed", "operator": method, "status": result.get("status")}],
-    } | _save_kb_case(state, method, parsed, selected, recommendation, result)
+        "logs": state["logs"] + [
+            {"event": "operator_executed", "operator": method, "status": result.get("status")}
+        ],
+    }
+
 
 
 def _save_kb_case(state: AgentState, method: str, parsed: dict, selected: dict, recommendation: dict, result: dict) -> dict:
@@ -90,8 +97,8 @@ def _save_kb_case(state: AgentState, method: str, parsed: dict, selected: dict, 
         "operator_config": state.get("param_body", {}),
         "status": result.get("status", "unknown"),
         "failure_reason": result.get("error") if result.get("status") == "failed" else None,
-        "match_result": result.get("match_result").get("statistics"),
-        "cal_result": result.get("cal_result").get("statistics"),
+        "match_result": (result.get("match_result") or {}).get("statistics"),
+        "cal_result": (result.get("cal_result") or {}).get("statistics"),
         "created_at": datetime.now().isoformat(),
     }
 

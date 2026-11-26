@@ -3,7 +3,7 @@
 **LangGraph 驱动的自动化定标工作流**，覆盖星间交叉、星自交叉、SIG0 交叉、验潮站外推四种定标方法。
 支持自然语言下达任务、LLM 推荐方法、历史案例复用、参数体智能填充，以及一键执行 MATCH→CAL。
 
-✨ **核心特性**：LLM 任务解析 · 方法智能推荐 · 历史案例记忆 · 参数体智能填充 · 自然语言改参 · 质量评价与自动重试（规划中）· Web 可视化界面 · 验潮站数据自动统计
+✨ **核心特性**：LLM 任务解析 · 方法智能推荐 · 历史案例记忆 · 参数体智能填充 · 自然语言改参 · 质量评价与自动重试 · Web 可视化界面 · 验潮站数据自动统计
 
 ---
 
@@ -78,7 +78,7 @@ cd D:/BaiduSyncdisk/project/202610/calval_agent
 | `param_fill` | `parsed_task`、`kb_suggestions` | `param_body`、`status: awaiting_user_confirm` |
 | `user_confirm` | `param_body`、`user_confirmed` | `param_body`（可能被修改）、`user_confirmed=True` |
 | `execute_operator` | `recommendation.method`、`param_body` | `operator_result`、`status`（并追加写入知识库） |
-| `quality_evaluation` 🟡 | `operator_result.statistics`、`retry_count` | `quality_status`、`quality_score`、`quality_issues`、自增后的 `retry_count`（规划中） |
+| `quality_evaluation` ✅ | `operator_result.statistics`、`retry_count` | `quality_status`、`quality_score`、`quality_issues`、自增后的 `retry_count` |
 
 ---
 
@@ -181,7 +181,7 @@ serverdata:
 1. **数据发现** — 扫描卫星/验潮站/模型数据，展示完整统计（验潮站表、HY-2B 表、辅助模型键值）
 2. **任务描述** — 解析任务 / 查询知识库 / 推荐方法 / 智能化填充参数
 3. **参数体确认** — 手动编辑、自然语言修改、确认参数
-4. **执行结果** — 统计表格、图片预览、输出文件下载
+4. **执行结果** — 质量评价（评分环 + 问题清单 + 重试时间线）+ 统计表格、图片预览、输出文件下载
 
 ### API 一览
 
@@ -195,8 +195,9 @@ serverdata:
 | POST | `/api/recommend` | 方法推荐 |
 | POST | `/api/param_fill` | 参数体生成 |
 | POST | `/api/param_modify` | 自然语言修改参数 |
-| POST | `/api/execute` | 提交执行（后台线程） |
-| GET  | `/api/jobs/{id}` | 轮询执行状态 |
+| POST | `/api/execute` | 提交执行（后台线程，含质量评价 + 自动重试） |
+| GET  | `/api/jobs/{id}` | 轮询执行状态（含 quality / attempts） |
+| GET  | `/api/quality_rules` | 质量评价阈值与及格线 |
 | GET  | `/api/kb/all` | 全部历史案例 |
 | GET  | `/api/file?path=` | 预览/下载输出文件 |
 
@@ -226,13 +227,44 @@ serverdata:
 ### 节点 7 · Execute Operator
 根据 `recommendation.method` 调用对应算子执行 MATCH→CAL，执行后把案例追加写入 `data/kb_cases.json`（去重，保留最近 200 条）。
 
-### 节点 8 · Quality Evaluation 🟡（规划中）
-读取 `operator_result.statistics`，按算子类型逐项打分（星间/自交叉看 `mean_diff`、`rmse`、`r_squared`、有效点占比；SIG0 看 `bias`、`corr_coef`、匹配对数；验潮站看匹配点数、剔除率、全局标准差），输出 `quality_status` / `quality_score` / `quality_issues`。
+### 节点 8 · Quality Evaluation ✅
+读取 `operator_result.statistics`（经 `flatten_operator_result` 压平 CAL/MATCH 嵌套统计），按算子类型逐项打分（星间/自交叉看 `mean_diff`、`rmse`、`r_squared`、有效点占比；SIG0 看 `bias`、`corr_coef`、匹配对数；验潮站看匹配点数、剔除率、全局标准差），输出 `quality_status` / `quality_score` / `quality_issues`。
 
-- **过关**（score ≥ 60）→ 直接 `END`。
-- **不过关且 `retry_count` 未达上限** → 标记 `retry_needed`，由 LLM 依据 `quality_issues` 生成参数补丁（放宽 `Select_Area` / `distance_to_coast` / `Match_time`，或收紧 `ocean_depth` / `wind_speed`）后重跑 `param_fill → user_confirm → execute_operator`。
-- **超过重试上限**（默认 2 次）→ `status = failed`，写知识库一次后 `END`。
-- 阈值集中在 `config/quality_thresholds.yaml`，不硬编码；知识库只在最终结果处写入一次，避免重试循环污染 `kb_cases.json`。
+- **过关**（score ≥ 60）→ `status = success`，直接 `END`。
+- **不过关且 `retry_count` 未达上限** → `status = retry_needed`，由 `param_fill` 按 `quality_issues` 重生成参数补丁后重跑 `execute_operator`。
+- **超过重试上限**（默认 2 次）→ `status = failed`，`END`。
+- 阈值集中在 `config/quality_thresholds.yaml`，不硬编码；缺失指标不计 0 分、不参与评分。
+
+---
+
+## 🔍 质量评价与自动重试
+
+执行完成后，系统自动对结果打分；不达标则按问题清单调参重跑，最多 `MAX_RETRIES`（默认 2）次。
+
+### 评分维度（按算子）
+
+| 算子 | 检查项 |
+|------|--------|
+| 星间交叉 / 星自交叉 | `mean_diff_m`、`rmse_m`、`r_squared`、有效点占比 |
+| SIG0 交叉 | `bias`、`corr_coef`、匹配对数 `count` |
+| 验潮站外推 | 匹配点数、`percent` 剔除率、`global_std_cm` |
+
+- 及格线 `PASS_LINE = 60`，缺失指标不计 0 分、不参与评分。
+- 阈值可在 `config/quality_thresholds.yaml` 覆盖，无需改代码。
+
+### 自动调参规则（`_adjust_params`）
+
+| 问题字段 | 调整 |
+|----------|------|
+| `mean_diff_m` / `rmse_m` / `valid_ratio` / `count` / `total_match_points` | 放宽 `Select_Area` → `[-70,70,-180,180]`，`distance_to_coast` −20，`Match_time` +1.0 |
+| `r_squared` / `corr_coef` / `global_std_cm` | `ocean_depth` +500，`wind_speed` → `[0,30]` |
+| `percent`（剔除率过高） | `wind_speed` → `[0,50]` |
+
+### Web 端
+
+- 第 3 步「自动重试」输入框控制 `max_retries`（0 = 不重试）。
+- 第 4 步质量面板：评分环 + 未达标项清单 + 每轮参数/耗时时间线。
+- `GET /api/quality_rules` 返回当前阈值与及格线。
 
 ---
 
@@ -298,14 +330,14 @@ echo "DEEPSEEK_API_KEY=sk-xxxx" >> .env
 | `param_fill` | 参数体填充 + LLM 微调 |
 | `user_confirm` | interrupt 用户确认 + 自然语言修改 |
 | `execute_operator` | 调用算子执行 MATCH→CAL，写入知识库 |
-| `web/` | FastAPI 后端 + 前端界面 |
+| `quality_evaluation` | 质量评价节点：按算子统计指标打分，不过关则自动调参重试（LangGraph + Web 同源逻辑） |
+| `web/` | FastAPI 后端 + 前端界面（含质量评价面板） |
 
 ### 🟡 规划中（层级 2）
 
 | 模块 | 功能 | 计划 |
 |------|------|------|
-| `quality_evaluation` | 质量评价节点：按算子统计指标打分，不过关则带问题清单自动重试 | 层级 2 · 进行中 |
-| `fallback` | 算子失败后自动调整参数重跑（与 `quality_evaluation` 共用重试通道） | Week 7–8 |
+| `fallback` | 算子失败后自动调整参数重跑（与 `quality_evaluation` 共用重试通道） | 与质量评价已打通 |
 | `KnowledgeBase` 写入完善 | 每次执行后把案例持久化到 `kb_cases.json` | 已集成在 `execute_operator_node` |
 | CLI / API 包装 | 对外给 Feishu 调用的入口 | 规划中 |
 
@@ -367,4 +399,4 @@ echo "DEEPSEEK_API_KEY=sk-xxxx" >> .env
 
 ---
 
-**Last Updated**: 2026-11-26 · **Version**: 2.3（规划：质量评价节点 `quality_evaluation` + RSI 模型自主进化路线 · 当前工作流仍为 7 节点）
+**Last Updated**: 2026-11-26 · **Version**: 2.4（质量评价节点 `quality_evaluation` 落地：LangGraph 图 + Web 质量面板 + 自动调参重试；下一步 RSI 模型自主进化）

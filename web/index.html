@@ -4,12 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cal/Val Agent · 卫星高度计定标验证</title>
-<link rel="stylesheet" href="/static/styles.css?v=7" />
+<link rel="stylesheet" href="/static/styles.css?v=8" />
 </head>
 <body>
 <header class="topbar">
   <div class="logo">🛰️ Cal/Val Agent</div>
-  <div class="subtitle">LangGraph 驱动的卫星高度计定标验证智能体 · v2.0</div>
+  <div class="subtitle">LangGraph 驱动的卫星高度计定标验证智能体 · v2.1</div>
   <div class="health" id="health">●</div>
 </header>
 
@@ -56,16 +56,23 @@
       <button id="btn-confirm">确认参数 (yes)</button>
       <button id="btn-execute" class="primary" disabled>执行定标 (MATCH→CAL)</button>
     </div>
+    <div class="row" id="retry-row">
+      <label for="max-retries"><b>自动重试</b></label>
+      <input id="max-retries" type="number" min="0" max="5" step="1" value="2"
+             style="width:72px" title="质量不达标时最多重跑几次（0 = 不重试）" />
+      <span class="log-line">质量不达标 → 自动调参重跑 · 及格线 <b id="pass-line">60</b> 分</span>
+    </div>
     <div id="exec-status" class="result-box"></div>
   </section>
 
   <!-- 4. 结果展示 -->
   <section class="card" id="sec-result">
     <h2>4 · 执行结果</h2>
+    <div id="quality-view" class="result-box"></div>
     <div id="result-view" class="result-box"></div>
   </section>
 </main>
 
-<script src="/static/app.js?v=7"></script>
+<script src="/static/app.js?v=8"></script>
 </body>
 </html>

@@ -1,0 +1,20 @@
+star_cross_cal:
+  max_mean_diff_m: 3.0
+  max_rmse_m: 5.0
+  min_r_squared: 0.7
+  min_valid_points_ratio: 0.6
+
+star_cross_match:
+  min_pass_all: 3
+  max_rmse_m: 5.0
+  min_r_squared: 0.7
+
+sig0_cross:
+  min_count: 5
+  max_bias: 0.5
+  min_corr_coef: 0.7
+
+ocean_tide:          # ycz_match / tide_ext 共用
+  min_total_match_points: 10
+  max_percent: 30.0
+  max_global_std_cm: 10.0

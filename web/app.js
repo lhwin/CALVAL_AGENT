@@ -13,6 +13,8 @@ const state = {
   confirmed: false,
   jobId: null,
   pollTimer: null,
+  maxRetries: 2,
+  qualityRules: null,
 };
 
 // ───────────── 基础工具 ─────────────
@@ -426,12 +428,23 @@ async function doExecute() {
     return (box.innerHTML = `<p class="log-line err">参数体不是合法 JSON: ${esc(e.message)}</p>`);
   }
 
+  const mrEl = $("max-retries");
+  const maxRetries = mrEl
+    ? Math.max(0, Math.min(5, parseInt(mrEl.value, 10) || 0))
+    : state.maxRetries;
+  state.maxRetries = maxRetries;
+
   busy(btn, true, "提交中…");
   box.innerHTML = `<span class="spinner"></span>提交执行任务…`;
   try {
     const d = await api("/api/execute", {
       method: "POST",
-      body: JSON.stringify({ method, param_body: paramBody, mode: state.mode }),
+      body: JSON.stringify({
+        method,
+        param_body: paramBody,
+        mode: state.mode,
+        max_retries: maxRetries,
+      }),
     });
     state.jobId = d.job_id;
     box.innerHTML = `<p class="log-line">任务已提交: <code>${esc(d.job_id)}</code>（method=${esc(method)}）</p>`;
@@ -452,12 +465,19 @@ function pollJob() {
       const j = await api(`/api/jobs/${state.jobId}`);
       const elapsed = j.started_at ? Math.round(performance.now() / 1000) : 0;
       if (j.status === "running" || j.status === "queued") {
+        const a = j.attempt || 0;
+        const m = j.max_attempts || 1;
         box.innerHTML = `<span class="spinner"></span><span class="log-line">${
           j.status === "queued" ? "排队中" : "执行中"
-        } … 方法 ${esc(j.method)}</span>`;
+        }${a ? ` · 第 ${a}/${m} 轮` : ""} … 方法 ${esc(j.method)}</span>`;
         state.pollTimer = setTimeout(tick, 2500);
       } else if (j.status === "done") {
-        box.innerHTML = `<p class="log-line ok">✔ 执行完成</p>`;
+        const q = j.quality || {};
+        const pass = q.status === "pass";
+        box.innerHTML =
+          `<p class="log-line ${pass ? "ok" : "warn"}">${pass ? "✔ 执行完成 · 质量达标" : "⚠ 执行完成 · 质量未达标"}</p>` +
+          `<p class="log-line">共执行 ${(q.attempts || []).length} 轮 · 质量评分 ${esc(q.score ?? "-")} / 100</p>`;
+        renderQuality(q);
         renderResult(j.result);
       } else {
         box.innerHTML = `<p class="log-line err">✘ 执行失败: ${esc(j.error || "未知错误")}</p>` +
@@ -471,6 +491,62 @@ function pollJob() {
 }
 
 // ───────────── 4. 结果渲染 ─────────────
+
+function renderQuality(q) {
+  const view = $("quality-view");
+  if (!view) return;
+  if (!q || q.score === undefined || q.score === null) {
+    view.innerHTML = "";
+    return;
+  }
+
+  const pass = q.status === "pass";
+  const color = pass ? "var(--ok)" : "var(--err)";
+  const issues = q.issues || [];
+  const attempts = q.attempts || [];
+
+  let html =
+    `<div class="quality-panel ${pass ? "pass" : "failed"}">` +
+    `<div class="score-ring" style="--pct:${Math.min(100, Math.max(0, Number(q.score) || 0))};--ring:${color}">` +
+      `<div><div class="num">${esc(q.score)}</div><div class="unit">SCORE</div></div>` +
+    `</div>` +
+    `<div class="quality-body">` +
+      `<div class="quality-head">` +
+      `<span class="title">质量评价</span>` +
+      tag(pass ? "达标" : "未达标", pass ? "ok" : "err") +
+      tag("及格线 " + (q.pass_line ?? 60), "info") +
+      (attempts.length > 1 ? tag("自动重试 " + attempts.length + " 轮", "warn") : "") +
+      `</div>`;
+
+  if (issues.length) {
+    html +=
+      `<p class="log-line warn" style="margin:0 0 6px">未通过项（${issues.length}）：</p>` +
+      `<ul class="issue-list">${issues.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  } else {
+    html += `<p class="log-line ok" style="margin:0">✔ 所有质量指标均在阈值内</p>`;
+  }
+
+  html += `</div></div>`;
+
+  if (attempts.length > 1) {
+    html +=
+      `<div class="attempts"><div class="attempts-head">重试时间线 · 每轮按问题清单调参</div>`;
+    attempts.forEach((a) => {
+      const knobs = a.params || {};
+      const knobTxt = Object.entries(knobs).map(([k, v]) => `${k}=${v}`).join("  ");
+      html +=
+        `<div class="attempt-row ${a.pass ? "pass" : "fail"}">` +
+        `<span class="no">#${esc(a.attempt)}</span>` +
+        tag(a.pass ? "达标" : "未达标", a.pass ? "ok" : "err") +
+        `<span class="meta">${esc(a.elapsed ?? "-")}s · ${esc(knobTxt || "（初始参数）")}</span>` +
+        (a.issues && a.issues.length ? `<span class="delta">${esc(a.issues.length)} 项未达标</span>` : "") +
+        `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  view.innerHTML = html;
+}
 
 function renderStats(stats, title) {
   if (!stats) return "";
@@ -596,5 +672,22 @@ bind("btn-execute", doExecute);
 const modeSel = $("mode");
 if (modeSel) modeSel.onchange = (e) => (state.mode = e.target.value);
 
+async function loadQualityRules() {
+  try {
+    const d = await api("/api/quality_rules");
+    state.qualityRules = d;
+    if (d.max_retries !== undefined) state.maxRetries = d.max_retries;
+    const pl = $("pass-line");
+    if (pl && d.pass_line !== undefined) pl.textContent = d.pass_line;
+    const mr = $("max-retries");
+    if (mr && (mr.value === "" || mr.value === null) && d.max_retries !== undefined) {
+      mr.value = d.max_retries;
+    }
+  } catch {
+    /* 后端未就绪时保持 html 里的默认值 */
+  }
+}
+
 checkHealth();
+loadQualityRules();
 setInterval(checkHealth, 30000);

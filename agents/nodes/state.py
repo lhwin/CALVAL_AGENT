@@ -48,3 +48,9 @@ class AgentState(TypedDict):
     kb_cases: Annotated[list, "Matched historical cases from knowledge base"] = [],
     kb_suggestions: Annotated[Dict[str, Any], "KB suggested parameters from successful cases"] = {},
     kb_warnings: Annotated[list, "KB failure warnings from failed cases"] = [],
+
+    # Quality Evaluation
+    quality_status: Annotated[str, "pass|fail|retry_needed|failed"] = "pending"
+    quality_score: Annotated[int, "0-100 质量评分"] = 0
+    quality_issues: Annotated[list, "质量不达标的具体原因列表"] = []
+

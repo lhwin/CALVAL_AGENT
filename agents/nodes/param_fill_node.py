@@ -130,6 +130,16 @@ def param_fill_node(state: AgentState) -> AgentState:
             "output": f"output_local_test/{method}_0",
         }
 
+    quality_issues = state.get("quality_issues") or []
+    quality_hint = ""
+    if quality_issues:
+        quality_hint = (
+            "\n上一轮质量评价未通过，原因：" + "；".join(quality_issues) +
+            "\n请针对上述问题调整参数：放宽 Select_Area / distance_to_coast / Match_time，"
+            "或收紧 ocean_depth / wind_speed"
+        )
+
+
     llm = LLMClient()
 
     case = state.get("kb_cases", {})
@@ -146,7 +156,7 @@ def param_fill_node(state: AgentState) -> AgentState:
         这是数据解析结果：\
           {state['metadata']["data_summary"]["data_describe"] if state.get("available_datasets") else "无数据解析结果"}
         目前已经确定的参数：{param_body} 你只需要返回json即可,你需要调节的参数有\
-      Match_time Select_Area distance_to_coast ocean_depth wind_speed"""
+      Match_time Select_Area distance_to_coast ocean_depth wind_speed{quality_hint}"""
     else:
         param_fill_prompt = f"""
         请根据以下信息生成 定标检验最终的参数体 JSON：
@@ -154,7 +164,7 @@ def param_fill_node(state: AgentState) -> AgentState:
         这是数据解析结果：\
           {state['metadata']["data_summary"]["data_describe"] if state.get("available_datasets") else "无数据解析结果"} \
         目前已经确定的参数：{param_body} 你只需要返回json即可,你需要调节的参数有\
-      Match_time Select_Area distance_to_coast ocean_depth wind_speed"""
+      Match_time Select_Area distance_to_coast ocean_depth wind_speed{quality_hint}"""
     response = llm.chat(param_fill_prompt)
     json_str = re.sub(r'^[^{]*', '', response)
     json_str = re.sub(r'[^}]*$', '', json_str)

@@ -21,6 +21,7 @@ from agents.nodes.method_recommendation_node import method_recommendation_node
 from agents.nodes.param_fill_node import param_fill_node
 from agents.nodes.user_confirm_node import user_confirm_node
 from agents.nodes.knowledge_base_node import knowledge_base_node
+from agents.nodes.quality_eval_node import quality_eval_node
 
 def create_workflow(debug: bool = False, checkpointer=None):
     """创建工作流图。"""
@@ -33,6 +34,7 @@ def create_workflow(debug: bool = False, checkpointer=None):
         "user_confirm": user_confirm_node,
         "execute_operator": execute_operator_node,
         "knowledge_base": knowledge_base_node,
+        "quality_evaluation":quality_eval_node,
     }
     for name, func in nodes.items():
         graph_builder.add_node(name, func)
@@ -74,12 +76,31 @@ def create_workflow(debug: bool = False, checkpointer=None):
         {"execute_operator": "execute_operator"},
     )
 
+    def route_after_operator(state: AgentState) -> Literal["quality_evaluation", "param_fill", END]:
+        quality_status = state.get("quality_status", "pending")
+        if quality_status == "pending":
+            return "quality_evaluation"      # 刚跑完，还没评价
+        if quality_status == "fail":
+            return "param_fill"              # 未过关，带问题清单重新填参
+        return END                           # pass / failed
+
     graph_builder.add_conditional_edges(
         "execute_operator",
-        lambda s: END,
-        {END: END},
+        route_after_operator,
+        {
+            "quality_evaluation": "quality_evaluation",
+            "param_fill": "param_fill",
+            END: END,
+        },
+    )
+
+    graph_builder.add_conditional_edges(
+        "quality_evaluation",
+        lambda s: "param_fill" if s.get("quality_status") == "fail" else END,
+        {"param_fill": "param_fill", END: END},
     )
 
     return graph_builder.compile(checkpointer=checkpointer)
 
-workflow_graph = create_workflow()
+if __name__ == "__main__":
+    workflow_graph = create_workflow()

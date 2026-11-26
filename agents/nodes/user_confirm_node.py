@@ -12,6 +12,17 @@ def user_confirm_node(state: AgentState) -> AgentState:
     用户回复后，把修改后的参数写回 state["param_body"]，state["user_confirmed"]=True，
     再次调用 graph.invoke(state) 继续流转。
     """
+     # 自动重试轮：不打断用户，直接放行
+    if (state.get("retry_count") or 0) > 0:
+        return {
+            "user_confirmed": True,
+            "status": "running",
+            "logs": state.get("logs", []) + [{
+                "event": "user_confirm_auto_passed",
+                "retry_count": state.get("retry_count"),
+            }],
+        }
+
     param_body = state.get("param_body", {})
     user_confirmed = state.get("user_confirmed", False)
 

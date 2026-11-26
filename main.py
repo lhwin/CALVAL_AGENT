@@ -21,13 +21,13 @@ initial_state = {
     "operator_result": None,
     "logs": [],
     "status": "pending",
-    "mode": "remote"
+    "mode": "local"
 }
 
 # 第一步：运行到 user_confirm 暂停
 result = graph.invoke(initial_state, config)
-suggest = result["__interrupt__"][0].value["messages"]
-suggest_command = input(f"{suggest} : ")
+# suggest = result["__interrupt__"][0].value["messages"]
+suggest_command = input("sugges : ")
 
 result = graph.invoke(Command(resume=suggest_command), config=config)
 
